@@ -6,17 +6,46 @@ const nodemailer = require("nodemailer");
 
 const app = express();
 
-// Allow JSON body
+// ========================
+// MIDDLEWARE
+// ========================
+
+// Parse JSON bodies
 app.use(express.json());
 
-// Allow frontend to call this backend
+// CORS – allow your frontend origins
+const allowedOrigins = [
+  process.env.FRONTEND_ORIGIN, // e.g. https://mujahid137.github.io
+  "http://localhost:5500",     // VSCode Live Server
+  "http://127.0.0.1:5500",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN || "http://localhost:5500",
+    origin: (origin, callback) => {
+      // Allow non-browser tools (like Postman) with no origin
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn("❌ CORS blocked origin:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
   })
 );
 
-// Mail setup (using Gmail)
+// ========================
+// NODEMAILER (GMAIL) SETUP
+// ========================
+// Make sure in your .env / Render env:
+//
+// MAIL_USER=yourgmail@gmail.com
+// MAIL_PASS=your_app_password   (NOT normal password)
+// MAIL_TO=yourgmail@gmail.com   (optional, defaults to MAIL_USER)
+// FRONTEND_ORIGIN=https://mujahid137.github.io
+//
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -25,19 +54,46 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Optional: log if mail config is okay
+transporter.verify((err, success) => {
+  if (err) {
+    console.error("❌ Nodemailer config error:", err.message || err);
+  } else {
+    console.log("✅ Mail server is ready to take messages");
+  }
+});
+
+// ========================
+// ROUTES
+// ========================
+
 // Simple test route
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Backend is running" });
+});
+
+// Optional health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
 // Contact route
 app.post("/api/contact", async (req, res) => {
   const { name, email, message } = req.body || {};
 
+  // Basic validation
   if (!name || !email || !message) {
     return res
       .status(400)
-      .json({ success: false, error: "All fields are required" });
+      .json({ success: false, error: "All fields are required." });
+  }
+
+  // Very simple email format check (not perfect, just basic)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Please enter a valid email address." });
   }
 
   try {
@@ -50,18 +106,22 @@ app.post("/api/contact", async (req, res) => {
         <p><b>Name:</b> ${name}</p>
         <p><b>Email:</b> ${email}</p>
         <p><b>Message:</b></p>
-        <p>${message.replace(/\n/g, "<br>")}</p>
+        <p>${String(message).replace(/\n/g, "<br>")}</p>
       `,
     });
 
     return res.json({ success: true, message: "Message sent!" });
   } catch (err) {
-    console.error("Mail error:", err.message);
-    return res
-      .status(500)
-      .json({ success: false, error: "Server error. Try again later." });
+    console.error("❌ Mail error:", err.message || err);
+    return res.status(500).json({
+      success: false,
+      error: "Server error while sending email. Please try again later.",
+    });
   }
 });
 
+// ========================
+// START SERVER
+// ========================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log("✅ Server running on port", PORT));
