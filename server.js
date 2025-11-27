@@ -13,39 +13,34 @@ const app = express();
 // Parse JSON bodies
 app.use(express.json());
 
-// CORS – allow your frontend origins
-const allowedOrigins = [
-  process.env.FRONTEND_ORIGIN, // e.g. https://mujahid137.github.io
-  "http://localhost:5500",     // VSCode Live Server
-  "http://127.0.0.1:5500",
-].filter(Boolean);
+// CORS – allow your frontend(s)
+const corsOptions = {
+  origin: [
+    "https://mujahid137.github.io", // your GitHub Pages URL
+    "http://localhost:5500",        // local dev (VS Code Live Server)
+    "http://127.0.0.1:5500",
+  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+};
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow non-browser tools (like Postman) with no origin
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.warn("❌ CORS blocked origin:", origin);
-      return callback(new Error("Not allowed by CORS"));
-    },
-  })
-);
+app.use(cors(corsOptions));
+// Handle preflight for all routes
+app.options("*", cors(corsOptions));
 
 // ========================
 // NODEMAILER (GMAIL) SETUP
 // ========================
-// Make sure in your .env / Render env:
+//
+// In Render / .env, you MUST set:
 //
 // MAIL_USER=yourgmail@gmail.com
-// MAIL_PASS=your_app_password   (NOT normal password)
-// MAIL_TO=yourgmail@gmail.com   (optional, defaults to MAIL_USER)
-// FRONTEND_ORIGIN=https://mujahid137.github.io
+// MAIL_PASS=your_gmail_app_password   (NOT your normal password)
+// MAIL_TO=yourgmail@gmail.com         (optional, defaults to MAIL_USER)
 //
+// FRONTEND_ORIGIN is NOT required anymore, we hard-coded origins above.
+//
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -54,7 +49,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Optional: log if mail config is okay
+// Optional: verify mail configuration on server start
 transporter.verify((err, success) => {
   if (err) {
     console.error("❌ Nodemailer config error:", err.message || err);
@@ -67,12 +62,12 @@ transporter.verify((err, success) => {
 // ROUTES
 // ========================
 
-// Simple test route
+// Basic root route
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Backend is running" });
 });
 
-// Optional health check
+// Health check (optional)
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -88,7 +83,7 @@ app.post("/api/contact", async (req, res) => {
       .json({ success: false, error: "All fields are required." });
   }
 
-  // Very simple email format check (not perfect, just basic)
+  // Simple email pattern check (not perfect, but good enough)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res
