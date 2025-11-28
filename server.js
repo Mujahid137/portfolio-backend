@@ -1,17 +1,28 @@
+// server.js
 require("dotenv").config();
 const express = require("express");
 const nodemailer = require("nodemailer");
 
 const app = express();
 
+// Parse JSON request bodies
 app.use(express.json());
 
-// CORS – manual, always runs
+// ========================
+// CORS MIDDLEWARE (CRITICAL)
+// ========================
 app.use((req, res, next) => {
+  // 👇 This line MUST be here and must match your GitHub origin
   res.header("Access-Control-Allow-Origin", "https://mujahid137.github.io");
+
+  // Allow methods and headers
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type");
 
+  // Debug: log every request
+  console.log("CORS middleware hit:", req.method, req.path);
+
+  // Respond to preflight
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -19,6 +30,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ========================
+// NODEMAILER (GMAIL)
+// ========================
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -32,6 +46,9 @@ transporter.verify((err) => {
   else console.log("✅ Mail server ready");
 });
 
+// ========================
+// ROUTES
+// ========================
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Backend is running correctly" });
 });
