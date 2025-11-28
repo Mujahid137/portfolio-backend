@@ -11,12 +11,14 @@ const app = express();
 // ==========================
 // For development: allow all origins
 // For production, you can restrict to your GitHub Pages domain.
+const cors = require("cors");
+
 app.use(
   cors({
     origin: [
-      "http://localhost:5500",                // local dev (VS Code Live Server etc.)
-      "http://127.0.0.1:5500",
-      "https://mujahid137.github.io"          // your GitHub Pages portfolio
+      "http://localhost:5500",                   // local dev (optional)
+      "http://127.0.0.1:5500",                  // local dev (optional)
+      "https://mujahid137.github.io"            // ✅ your GitHub Pages domain
     ],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
@@ -98,3 +100,4 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
