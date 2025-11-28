@@ -13,32 +13,27 @@ const app = express();
 // Parse JSON bodies
 app.use(express.json());
 
-// CORS – allow your frontend(s)
-const corsOptions = {
-  origin: [
-    "https://mujahid137.github.io", // your GitHub Pages URL
-    "http://localhost:5500",        // local dev (VS Code Live Server)
-    "http://127.0.0.1:5500",
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
-};
+// 🔥 SIMPLE CORS: allow ALL origins (OK for a small portfolio API)
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 
-app.use(cors(corsOptions));
 // Handle preflight for all routes
-app.options("*", cors(corsOptions));
+app.options("*", cors());
 
 // ========================
 // NODEMAILER (GMAIL) SETUP
 // ========================
 //
-// In Render / .env, you MUST set:
+// In Render / .env:
 //
 // MAIL_USER=yourgmail@gmail.com
-// MAIL_PASS=your_gmail_app_password   (NOT your normal password)
-// MAIL_TO=yourgmail@gmail.com         (optional, defaults to MAIL_USER)
-//
-// FRONTEND_ORIGIN is NOT required anymore, we hard-coded origins above.
+// MAIL_PASS=your_gmail_app_password
+// MAIL_TO=yourgmail@gmail.com   (optional)
 //
 
 const transporter = nodemailer.createTransport({
@@ -49,7 +44,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Optional: verify mail configuration on server start
+// Optional: check mail config at startup
 transporter.verify((err, success) => {
   if (err) {
     console.error("❌ Nodemailer config error:", err.message || err);
@@ -62,28 +57,21 @@ transporter.verify((err, success) => {
 // ROUTES
 // ========================
 
-// Basic root route
+// Root route
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Backend is running" });
-});
-
-// Health check (optional)
-app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
 });
 
 // Contact route
 app.post("/api/contact", async (req, res) => {
   const { name, email, message } = req.body || {};
 
-  // Basic validation
   if (!name || !email || !message) {
     return res
       .status(400)
       .json({ success: false, error: "All fields are required." });
   }
 
-  // Simple email pattern check (not perfect, but good enough)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res
