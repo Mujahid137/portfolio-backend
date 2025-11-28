@@ -1,97 +1,100 @@
 // server.js
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
 const nodemailer = require("nodemailer");
 
 const app = express();
 
-// Parse JSON request bodies
+// ==========================
+// CORS CONFIG
+// ==========================
+// For development: allow all origins
+// For production, you can restrict to your GitHub Pages domain.
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5500",                // local dev (VS Code Live Server etc.)
+      "http://127.0.0.1:5500",
+      "https://mujahid137.github.io"          // your GitHub Pages portfolio
+    ],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
 app.use(express.json());
 
-// ========================
-// CORS MIDDLEWARE (CRITICAL)
-// ========================
-app.use((req, res, next) => {
-  // 👇 This line MUST be here and must match your GitHub origin
-  res.header("Access-Control-Allow-Origin", "https://mujahid137.github.io");
-
-  // Allow methods and headers
-  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-
-  // Debug: log every request
-  console.log("CORS middleware hit:", req.method, req.path);
-
-  // Respond to preflight
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-
-  next();
-});
-
-// ========================
-// NODEMAILER (GMAIL)
-// ========================
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
-});
-
-transporter.verify((err) => {
-  if (err) console.error("❌ Email config error:", err.message || err);
-  else console.log("✅ Mail server ready");
-});
-
-// ========================
-// ROUTES
-// ========================
+// ==========================
+// HEALTH CHECK
+// ==========================
 app.get("/", (req, res) => {
-  res.json({ ok: true, message: "Backend is running correctly" });
+  res.json({ status: "ok", message: "Backend is running" });
 });
 
+// ==========================
+// CONTACT API
+// ==========================
 app.post("/api/contact", async (req, res) => {
-  const { name, email, message } = req.body || {};
+  const { name, email, subject, message } = req.body || {};
 
+  // Basic validation
   if (!name || !email || !message) {
-    return res
-      .status(400)
-      .json({ success: false, error: "All fields are required." });
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res
-      .status(400)
-      .json({ success: false, error: "Please enter a valid email address." });
+    return res.status(400).json({
+      success: false,
+      error: "Name, email, and message are required.",
+    });
   }
 
   try {
-    await transporter.sendMail({
-      from: `"Portfolio Contact" <${process.env.MAIL_USER}>`,
-      to: process.env.MAIL_TO || process.env.MAIL_USER,
-      subject: `New message from ${name}`,
-      html: `
-        <h2>You got a new portfolio message</h2>
-        <p><b>Name:</b> ${name}</p>
-        <p><b>Email:</b> ${email}</p>
-        <p><b>Message:</b></p>
-        <p>${String(message).replace(/\n/g, "<br>")}</p>
-      `,
+    // Nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: process.env.SMTP_PORT
+        ? parseInt(process.env.SMTP_PORT, 10)
+        : 587,
+      secure: process.env.SMTP_SECURE === "true" || false, // true for 465, false for 587
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
     });
 
-    return res.json({ success: true, message: "Message sent successfully!" });
+    // Email content
+    await transporter.sendMail({
+      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_TO || process.env.EMAIL_USER,
+      replyTo: email,
+      subject: subject || `New message from ${name}`,
+      text: `You have a new message from your portfolio contact form:
+
+Name: ${name}
+Email: ${email}
+
+Message:
+${message}
+`,
+    });
+
+    console.log(`✅ Email sent from ${name} <${email}>`);
+
+    return res.json({
+      success: true,
+      message: "Email sent successfully.",
+    });
   } catch (err) {
-    console.error("❌ Mail sending error:", err.message || err);
+    console.error("❌ Error sending email:", err);
     return res.status(500).json({
       success: false,
-      error: "Server error. Could not send message.",
+      error: "Failed to send email. Please try again later.",
     });
   }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// ==========================
+// START SERVER
+// ==========================
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
